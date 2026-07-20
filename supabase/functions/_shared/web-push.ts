@@ -30,6 +30,8 @@ type WebPushFailure = {
   message: string;
 };
 
+const WEB_PUSH_SOCKET_TIMEOUT_MS = 8_000;
+
 function normalizeSecret(value: string | undefined) {
   if (!value) return '';
   let normalized = value.trim();
@@ -103,14 +105,20 @@ export async function sendWebPushBatch(rows: WebPushRow[], payload: WebPushPaylo
   const failures: WebPushFailure[] = [];
   const outcomes: WebPushOutcome[] = [];
 
-  // Invio sequenziale intenzionale: evita picchi verso i gateway browser e rende
-  // deterministico il risultato per ogni singola sottoscrizione.
+  // Ogni richiesta ha un timeout socket esplicito: senza questo limite il
+  // gateway può lasciare la Promise sospesa fino alla terminazione della Edge Function,
+  // mantenendo la consegna bloccata nello stato "processing".
   for (const row of rows) {
     try {
       await webpush.sendNotification(
         { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
         JSON.stringify(payload),
-        { TTL: 86400, urgency: 'high', contentEncoding: 'aes128gcm' },
+        {
+          TTL: 86400,
+          urgency: 'high',
+          contentEncoding: 'aes128gcm',
+          timeout: WEB_PUSH_SOCKET_TIMEOUT_MS,
+        },
       );
       sent += 1;
       outcomes.push({ id: row.id, result: 'sent', statusCode: 201 });
