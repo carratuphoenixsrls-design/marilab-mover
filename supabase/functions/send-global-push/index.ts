@@ -197,6 +197,7 @@ Deno.serve(async (req) => {
     const targetProvider = String(body?.targetProvider ?? '');
     const targetKey = String(body?.targetKey ?? '').trim();
     const filter: PushTargetFilter = {};
+    let ownedTargetId: number | null = null;
     if (targetProvider || targetKey) {
       if (!['expo', 'web'].includes(targetProvider) || !targetKey) throw new Error('Destinazione push di test non valida.');
       if (notification.recipient_user_id !== authData.user.id) {
@@ -210,6 +211,7 @@ Deno.serve(async (req) => {
       if (!ownedTarget) {
         return response({ ok: false, error: 'Il dispositivo di test non appartiene all’utente corrente o non è attivo.' }, 403);
       }
+      ownedTargetId = Number(ownedTarget.id);
       filter.provider = targetProvider as 'expo' | 'web';
       filter.key = targetKey;
     }
@@ -221,9 +223,36 @@ Deno.serve(async (req) => {
     const queued = Number(dispatchResult.retried ?? 0) > 0 || Number(dispatchResult.summary?.pending ?? 0) > 0;
     const totalAccepted = acceptedExpo + sentWeb;
     const noTargets = Number(dispatchResult.summary?.total ?? 0) === 0;
+    let diagnostic: Record<string, unknown> | null = null;
+    if (ownedTargetId && ['expo', 'web'].includes(targetProvider)) {
+      const { data: deliveryDiagnostic } = await adminClient
+        .from('push_deliveries')
+        .select('status, attempts, last_status_code, last_error')
+        .eq('notification_id', notificationId)
+        .eq('provider', targetProvider)
+        .eq('target_id', ownedTargetId)
+        .maybeSingle();
+      if (deliveryDiagnostic) {
+        diagnostic = {
+          status: deliveryDiagnostic.status,
+          attempts: deliveryDiagnostic.attempts,
+          statusCode: deliveryDiagnostic.last_status_code,
+          error: String(deliveryDiagnostic.last_error ?? '').slice(0, 500),
+        };
+      }
+    }
+
+    const targetedTest = ownedTargetId !== null;
+    const diagnosticText = diagnostic
+      ? [
+          diagnostic.status ? `stato ${String(diagnostic.status)}` : '',
+          Number(diagnostic.statusCode ?? 0) ? `codice ${Number(diagnostic.statusCode)}` : '',
+          String(diagnostic.error ?? '').trim(),
+        ].filter(Boolean).join(' · ')
+      : '';
 
     return response({
-      ok: totalAccepted > 0 || queued,
+      ok: targetedTest ? totalAccepted > 0 : totalAccepted > 0 || queued,
       sent: totalAccepted,
       sentExpo: acceptedExpo,
       acceptedExpo,
@@ -236,13 +265,18 @@ Deno.serve(async (req) => {
       failed: dispatchResult.failed,
       invalid: dispatchResult.invalid,
       summary: dispatchResult.summary,
+      diagnostic,
       error: noTargets
         ? 'Nessun dispositivo push attivo per il destinatario. Premi “Attiva su questo dispositivo”.'
-        : totalAccepted === 0 && queued
-          ? 'Gateway temporaneamente non disponibile: invio accodato per un nuovo tentativo automatico.'
-          : totalAccepted === 0
-            ? 'La notifica non è stata accettata da alcun gateway push.'
-            : undefined,
+        : targetedTest && totalAccepted === 0 && diagnosticText
+          ? `Test push non consegnato: ${diagnosticText}`
+          : targetedTest && totalAccepted === 0
+            ? `Test push non consegnato. Accodate: ${Number(dispatchResult.retried ?? 0)} · fallite: ${Number(dispatchResult.failed ?? 0)} · non valide: ${Number(dispatchResult.invalid ?? 0)}.`
+            : totalAccepted === 0 && queued
+              ? 'Gateway temporaneamente non disponibile: invio accodato per un nuovo tentativo automatico.'
+              : totalAccepted === 0
+                ? 'La notifica non è stata accettata da alcun gateway push.'
+                : undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Errore interno.';
