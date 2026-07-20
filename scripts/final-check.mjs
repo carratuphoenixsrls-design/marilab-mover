@@ -63,14 +63,14 @@ check('Permesso Android 13 corretto', Array.isArray(app.expo.android?.permission
 check('Firebase Android collegato', app.expo.android?.googleServicesFile === './google-services.json' && exists('google-services.json'));
 check('EAS project collegato', app.expo.extra?.eas?.projectId === '60570208-f4ac-486f-a133-916a11ec42b5');
 check('Autore ufficiale Fabio Carratù', pkg.author === 'Fabio Carratù' && app.expo.extra?.author === 'Fabio Carratù');
-check('Node LTS vincolato', pkg.engines?.node === '>=20 <23');
+check('Node LTS vincolato', pkg.engines?.node === '22.x');
 check('Typecheck configurato', pkg.scripts?.typecheck === 'tsc --noEmit');
 check('Lint configurato', pkg.scripts?.lint === 'expo lint');
 check('Build web configurata', pkg.scripts?.build === 'expo export --platform web --max-workers 2');
 check('Simulazione Push configurata', pkg.scripts?.['verify:push'] === 'node scripts/push-reliability-simulation.mjs' && exists('scripts/push-reliability-simulation.mjs'));
 check('Check completo configurato', pkg.scripts?.check?.includes('lint') && pkg.scripts?.check?.includes('typecheck') && pkg.scripts?.check?.includes('verify:final') && pkg.scripts?.check?.includes('verify:push') && pkg.scripts?.check?.includes('build'));
 
-check('Vercel install riproducibile', vercel.installCommand === 'npm ci --no-audit --no-fund');
+check('Vercel install riproducibile', vercel.installCommand === 'corepack pnpm@10.28.0 install --no-frozen-lockfile');
 check('Vercel output dist', vercel.outputDirectory === 'dist');
 check('Vercel SPA rewrite', Array.isArray(vercel.rewrites) && vercel.rewrites.some((item) => item.destination === '/index.html'));
 check('Header Service Worker senza cache obsoleta', JSON.stringify(vercel.headers).includes('must-revalidate') && JSON.stringify(vercel.headers).includes('Service-Worker-Allowed'));
@@ -101,15 +101,16 @@ check('Modal statistiche HD', shell.includes("statisticsScroll: { padding") && s
 check('Chat e notifiche HD', shell.includes("chatList: { flexGrow") && shell.includes("notificationList: { padding") && shell.includes("Platform.OS === 'web' ? 1400"));
 
 check('Web Push browser implementato', exists('src/lib/notifications.web.ts') && exists('public/sw.js'));
-check('Fallback chiave pubblica Web Push', webNotifications.includes('DEFAULT_WEB_PUSH_VAPID_PUBLIC_KEY'));
+check('Nessun fallback VAPID incorporato', !webNotifications.includes('DEFAULT_WEB_PUSH_VAPID_PUBLIC_KEY') && webNotifications.includes("return '';"));
 check('Chiave server memorizzata in cache locale', webNotifications.includes('SERVER_VAPID_STORAGE_KEY') && webNotifications.includes('cacheWebPushPublicKey'));
 check('Service Worker preparato prima del prompt', webNotifications.indexOf('const registrationPromise = prepareWebPushServiceWorker()') >= 0 && webNotifications.indexOf('const registrationPromise = prepareWebPushServiceWorker()') < webNotifications.indexOf('Notification.requestPermission()'));
 check('Prompt direttamente dal tap', store.includes('registerPushToken(currentUser, true)') && store.indexOf('registerForPushNotificationsAsync(requestPermission)') < store.indexOf("action: 'register'"));
 check('iPhone richiede PWA Home', webNotifications.includes('isStandaloneWebApp') && webNotifications.includes('aggiungi Marilab Mover alla schermata Home'));
 check('Rinnovo sottoscrizione solo con VAPID cambiata', webNotifications.includes('vapidKeyChanged') && webNotifications.includes('subscription.unsubscribe'));
-check('Sottoscrizione Web Push completa', webNotifications.includes('json.keys?.p256dh') && webNotifications.includes('json.keys?.auth'));
+check('Sottoscrizione Web Push serializzata esplicitamente', webNotifications.includes('serializeWebPushSubscription') && webNotifications.includes("subscription.getKey('p256dh')") && webNotifications.includes("subscription.getKey('auth')"));
 check('Registrazione browser demandata al server', store.includes("action: 'register'") && !store.includes("from('web_push_subscriptions').upsert"));
 check('Edge Function registra endpoint', pushFn.includes("action === 'register'") && pushFn.includes("onConflict: 'endpoint'"));
+check('Edge Function accetta payload Web Push normalizzato', pushFn.includes('subscription?.p256dh') && pushFn.includes('body?.p256dh') && pushFn.includes('fields:'));
 check('Edge Function trasferisce endpoint all’utente autenticato', pushFn.includes('user_id: authData.user.id'));
 check('Edge Function verifica coerenza VAPID', pushFn.includes('clientPublicKey !== publicKey'));
 check('Configurazione push leggibile dal client autenticato', pushFn.includes("action === 'config'") && pushFn.includes('vapidPublicKey'));
