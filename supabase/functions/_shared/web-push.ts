@@ -1,4 +1,4 @@
-import webpush from 'npm:web-push@3.6.7';
+import { buildPushPayload } from 'npm:@block65/webcrypto-web-push@1.0.2';
 
 export type WebPushRow = {
   id: number;
@@ -30,7 +30,7 @@ type WebPushFailure = {
   message: string;
 };
 
-const WEB_PUSH_SOCKET_TIMEOUT_MS = 8_000;
+const WEB_PUSH_FETCH_TIMEOUT_MS = 8_000;
 
 function normalizeSecret(value: string | undefined) {
   if (!value) return '';
@@ -97,7 +97,7 @@ export async function sendWebPushBatch(rows: WebPushRow[], payload: WebPushPaylo
     };
   }
 
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  const vapid = { subject, publicKey, privateKey };
   let sent = 0;
   const invalidIds: number[] = [];
   const refreshIds: number[] = [];
@@ -105,26 +105,41 @@ export async function sendWebPushBatch(rows: WebPushRow[], payload: WebPushPaylo
   const failures: WebPushFailure[] = [];
   const outcomes: WebPushOutcome[] = [];
 
-  // Ogni richiesta ha un timeout socket esplicito: senza questo limite il
-  // gateway può lasciare la Promise sospesa fino alla terminazione della Edge Function,
-  // mantenendo la consegna bloccata nello stato "processing".
+  // Supabase Edge Functions esegue su un runtime Deno. Il trasporto usa quindi
+  // Web Crypto per firma/cifratura e fetch nativo, evitando la richiesta HTTPS
+  // Node che in produzione rimaneva sospesa con la consegna in "processing".
   for (const row of rows) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEB_PUSH_FETCH_TIMEOUT_MS);
     try {
-      await webpush.sendNotification(
-        { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
-        JSON.stringify(payload),
-        {
-          TTL: 86400,
-          urgency: 'high',
-          contentEncoding: 'aes128gcm',
-          timeout: WEB_PUSH_SOCKET_TIMEOUT_MS,
-        },
+      const subscription = {
+        endpoint: row.endpoint,
+        expirationTime: null,
+        keys: { p256dh: row.p256dh, auth: row.auth },
+      };
+      const request = await buildPushPayload(
+        { data: JSON.stringify(payload), options: { ttl: 86_400 } },
+        subscription,
+        vapid,
       );
+      const gatewayResponse = await fetch(row.endpoint, {
+        ...request,
+        signal: controller.signal,
+      });
+      const responseBody = await gatewayResponse.text().catch(() => '');
+      if (!gatewayResponse.ok) {
+        const failure = new Error(responseBody || `Gateway Web Push: HTTP ${gatewayResponse.status}.`) as Error & { statusCode?: number };
+        failure.statusCode = gatewayResponse.status;
+        throw failure;
+      }
+
       sent += 1;
-      outcomes.push({ id: row.id, result: 'sent', statusCode: 201 });
+      outcomes.push({ id: row.id, result: 'sent', statusCode: gatewayResponse.status || 201 });
     } catch (error) {
       const statusCode = errorStatus(error);
-      const message = errorText(error).slice(0, 500);
+      const message = controller.signal.aborted
+        ? `Timeout Web Push dopo ${WEB_PUSH_FETCH_TIMEOUT_MS / 1000} secondi.`
+        : errorText(error).slice(0, 500);
       const result = classifyFailure(statusCode);
       if (result === 'invalid') invalidIds.push(row.id);
       if (result === 'refresh') refreshIds.push(row.id);
@@ -132,6 +147,8 @@ export async function sendWebPushBatch(rows: WebPushRow[], payload: WebPushPaylo
       failures.push({ id: row.id, statusCode, message });
       outcomes.push({ id: row.id, result, statusCode, message });
       console.error('Web Push error', row.id, statusCode, message);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
