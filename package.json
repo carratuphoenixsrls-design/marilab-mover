@@ -1,7 +1,7 @@
 {
   "name": "marilabmover",
   "main": "expo-router/entry",
-  "version": "1.6.9",
+  "version": "1.8.2",
   "dependencies": {
     "@expo/ui": "~57.0.7",
     "@expo/vector-icons": "^15.1.1",
@@ -46,8 +46,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "export:web": "expo export --platform web",
-    "build": "expo export --platform web --max-workers 2",
+    "export:web": "expo export --platform web && node scripts/patch-web-pwa.mjs",
+    "build": "expo export --platform web --max-workers 2 && node scripts/patch-web-pwa.mjs",
     "check": "npm run lint && npm run typecheck && npm run verify:final && npm run verify:push && npm run build",
     "verify:final": "node scripts/final-check.mjs",
     "verify:push": "node scripts/push-reliability-simulation.mjs"
@@ -55,7 +55,6 @@
   "private": true,
   "author": "Fabio Carratù",
   "engines": {
-    "node": "22.x"
-  },
-  "packageManager": "pnpm@10.28.0"
+    "node": ">=20 <23"
+  }
 }

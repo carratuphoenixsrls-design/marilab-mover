@@ -1,0 +1,14 @@
+MARILAB MOVER E1.8.2 - PACCHETTO UFFICIALE
+==========================================
+
+1. Leggi prima: ISTRUZIONI_RAPIDE_E1_8_2.txt
+2. Analisi tecnica: ANALISI_COMPLETA_E1_8_2.md
+3. Migrazione obbligatoria se non già eseguita:
+   supabase\MIGRAZIONE_E1_8_1_ADMIN_CONTROL_CHAT_FIX.sql
+4. Deploy sul progetto Vercel ESISTENTE:
+   DEPLOY_E1_8_2_STESSO_DOMINIO.bat
+
+DOMINIO DA MANTENERE:
+https://marilab-mover.vercel.app
+
+Non creare un nuovo progetto Vercel.

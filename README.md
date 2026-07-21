@@ -1,4 +1,20 @@
-# Marilab Mover E1.6.9 — Push Reliability Multi‑Device
+# Marilab Mover E1.8.2 — Admin Control, PWA Icon & Badge
+
+Release correttiva completa Web/PWA, Android e iOS. Mantiene il dominio operativo esistente e include: chat private corrette, eliminazione totale chat solo Admin, eliminazione Admin di richieste/consegne in qualsiasi stato, icone Home reali e badge numerico aggiornato anche in background.
+
+## Aggiornamento dalla versione operativa
+
+1. Se non già eseguita, applicare `supabase/MIGRAZIONE_E1_8_1_ADMIN_CONTROL_CHAT_FIX.sql`.
+2. Eseguire `npm ci --no-audit --no-fund`.
+3. Eseguire `npm run check`.
+4. Collegare la cartella al progetto Vercel **esistente** di `marilab-mover.vercel.app`.
+5. Pubblicare con `npx vercel --prod` oppure `DEPLOY_E1_8_2_STESSO_DOMINIO.bat`.
+
+Dettagli: `ANALISI_COMPLETA_E1_8_2.md` e `RELEASE_E1_8_2_PWA_ICON_BADGE.md`.
+
+---
+
+## Base precedente E1.6.9 — Push Reliability Multi‑Device
 
 Autore ufficiale: **Fabio Carratù**
 

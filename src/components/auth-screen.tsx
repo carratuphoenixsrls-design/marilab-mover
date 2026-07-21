@@ -102,7 +102,7 @@ export function LoginScreen() {
               </Card>
             </View>
 
-            <Text style={styles.author}>Marilab Mover Enterprise 1.6.9 · Autore Fabio Carratù</Text>
+            <Text style={styles.author}>Marilab Mover Enterprise 1.8.2 · Autore Fabio Carratù</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

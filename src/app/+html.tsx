@@ -14,8 +14,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Marilab Mover" />
         <meta name="description" content="Spostamenti, consegne, chat e notifiche operative Marilab." />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json?v=182" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/icons/apple-touch-icon-120-v182.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152-v182.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167-v182.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-v182.png" />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: `
           html, body, #root { width: 100%; height: 100%; min-height: 100dvh; }

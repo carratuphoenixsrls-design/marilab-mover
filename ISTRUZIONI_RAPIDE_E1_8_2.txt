@@ -1,0 +1,59 @@
+MARILAB MOVER E1.8.2 - ISTRUZIONI RAPIDE
+=========================================
+
+OBIETTIVO: aggiornare il progetto ESISTENTE mantenendo:
+https://marilab-mover.vercel.app
+
+1) SUPABASE - UNA SOLA VOLTA
+----------------------------
+Apri Supabase > SQL Editor.
+Copia tutto il contenuto del file:
+
+supabase\MIGRAZIONE_E1_8_1_ADMIN_CONTROL_CHAT_FIX.sql
+
+Eseguilo.
+Se lo hai già eseguito correttamente, NON ripeterlo.
+
+2) APRI POWERSHELL NELLA CARTELLA
+---------------------------------
+npm ci --no-audit --no-fund
+npm run check
+
+Il controllo deve terminare con ESITO: SUPERATO.
+
+3) COLLEGA LA CARTELLA AL VERCEL ESISTENTE
+------------------------------------------
+Controlla che esista la cartella .vercel.
+Se non esiste, esegui:
+
+npx vercel link
+
+Quando richiesto scegli il progetto Vercel ESISTENTE collegato a:
+marilab-mover.vercel.app
+
+NON creare un nuovo progetto.
+
+4) DEPLOY
+---------
+npx vercel --prod
+
+Il dominio deve rimanere:
+https://marilab-mover.vercel.app
+
+5) TEST IPHONE
+--------------
+- Apri il sito da Safari.
+- Condividi > Aggiungi alla schermata Home.
+- Se esiste già una vecchia icona vuota, eliminala prima e aggiungila di nuovo.
+- Apri Marilab Mover dall'icona Home.
+- Accedi.
+- Apri Notifiche push e premi Attiva su questo dispositivo.
+- Invia un test push.
+
+6) TEST FUNZIONI ADMIN
+----------------------
+- Invia una chat privata da un utente non Admin.
+- Verifica la ricezione del destinatario.
+- Come Admin prova Svuota chat.
+- Come Admin prova Elimina tutte le chat.
+- Come Admin elimina una richiesta ancora aperta.

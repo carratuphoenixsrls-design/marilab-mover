@@ -102,6 +102,7 @@ interface AppStoreValue {
   sendChatMessage: (text: string, requestId?: string, recipientId?: string) => Promise<ChatMessage | null>;
   deleteChatMessage: (messageId: string) => Promise<ToggleResult>;
   clearChatConversation: (requestId?: string, recipientId?: string) => Promise<ToggleResult>;
+  clearAllChats: () => Promise<ToggleResult>;
   markNotificationRead: (notificationId: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   createGlobalNotification: (kind: NotificationKind, title: string, body: string, requestId?: string, recipientUserId?: string) => Promise<void>;
@@ -153,6 +154,11 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
   }, [currentUser]);
   const registeredPushRef = useRef<{ provider: 'expo' | 'web'; key: string } | undefined>(undefined);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    void prepareWebPushServiceWorker().catch(() => undefined);
+  }, []);
+
   const loadDataForUser = useCallback(async (profile: AppUser) => {
     if (!supabase) return;
     setRefreshing(true);
@@ -168,7 +174,7 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
         userDirectoryPromise,
         supabase.from('app_notifications').select('*').order('created_at', { ascending: false }).limit(250),
         supabase.from('notification_reads').select('notification_id').eq('user_id', profile.id),
-        supabase.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(1000),
+        supabase.from('chat_messages').select('*').order('created_at', { ascending: false }).limit(1000),
       ]);
 
       const firstError = [sitesResult.error, equipmentResult.error, requestsResult.error, usersResult.error, notificationsResult.error, readsResult.error, chatResult.error].find(Boolean);
@@ -185,7 +191,7 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
       setRequests(((requestsResult.data ?? []) as Record<string, unknown>[]).map(mapRequest));
       setUsers(withCurrent);
       setNotifications(((notificationsResult.data ?? []) as Record<string, unknown>[]).map((row) => mapNotification(row, profile.id, readIds)));
-      setChatMessages(((chatResult.data ?? []) as Record<string, unknown>[]).map(mapChatMessage));
+      setChatMessages(((chatResult.data ?? []) as Record<string, unknown>[]).map(mapChatMessage).sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
       setBackendError(undefined);
     } catch (error) {
       setBackendError(errorMessage(error, 'Impossibile leggere i dati da Supabase. Verifica la migrazione finale.'));
@@ -639,8 +645,7 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
     if (!supabase) return { ok: false, error: 'Supabase non configurato.' };
     if (currentUser.role !== 'admin') return { ok: false, error: 'Funzione riservata agli Admin.' };
     const target = requests.find((entry) => entry.id === requestId);
-    if (!target) return { ok: false, error: 'Consegna non trovata.' };
-    if (!['completed', 'cancelled'].includes(target.status)) return { ok: false, error: 'Puoi eliminare solo consegne chiuse o annullate.' };
+    if (!target) return { ok: false, error: 'Richiesta o consegna non trovata.' };
     const { error } = await supabase.rpc('admin_delete_delivery_request', { p_request_id: requestId });
     if (error) return { ok: false, error: errorMessage(error) };
     await refreshAll();
@@ -797,29 +802,40 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
         message: cleanText,
       }).select('*').single();
       if (error) throw error;
+
       const created = mapChatMessage(data as Record<string, unknown>);
+      setChatMessages((items) => items.some((item) => item.id === created.id)
+        ? items
+        : [...items, created].sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
+
       const request = requests.find((entry) => entry.id === requestId);
-      const recipient = users.find((entry) => entry.id === recipientId);
       const title = recipientId
         ? `Messaggio privato da ${currentUser.fullName}`
         : request ? `Nuovo messaggio su ${request.code}` : 'Nuovo messaggio nella chat generale';
       const body = recipientId ? cleanText.slice(0, 120) : `${currentUser.fullName}: ${cleanText.slice(0, 120)}`;
-      await createGlobalNotification('chat', title, body, requestId, recipient?.id);
+
+      try {
+        await createGlobalNotification('chat', title, body, requestId, recipientId);
+      } catch (notificationError) {
+        setBackendError(`Messaggio inviato, ma notifica non creata: ${errorMessage(notificationError)}`);
+      }
+
       await refreshAll();
       return created;
     } catch (error) {
       setBackendError(errorMessage(error));
       return null;
     }
-  }, [createGlobalNotification, currentUser.fullName, currentUser.id, refreshAll, requests, users]);
+  }, [createGlobalNotification, currentUser.fullName, currentUser.id, refreshAll, requests]);
 
   const deleteChatMessage = useCallback(async (messageId: string): Promise<ToggleResult> => {
     if (!supabase) return { ok: false, error: 'Supabase non configurato.' };
+    if (currentUser.role !== 'admin') return { ok: false, error: 'Solo un Admin può eliminare i messaggi.' };
     const { error } = await supabase.rpc('delete_chat_message', { p_message_id: Number(messageId) });
     if (error) return { ok: false, error: errorMessage(error) };
     await refreshAll();
     return { ok: true };
-  }, [refreshAll]);
+  }, [currentUser.role, refreshAll]);
 
   const clearChatConversation = useCallback(async (requestId?: string, recipientId?: string): Promise<ToggleResult> => {
     if (!supabase) return { ok: false, error: 'Supabase non configurato.' };
@@ -831,6 +847,20 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
     if (error) return { ok: false, error: errorMessage(error) };
     await refreshAll();
     return { ok: true };
+  }, [currentUser.role, refreshAll]);
+
+
+  const clearAllChats = useCallback(async (): Promise<ToggleResult> => {
+    if (!supabase) return { ok: false, error: 'Supabase non configurato.' };
+    if (currentUser.role !== 'admin') return { ok: false, error: 'Solo un Admin può eliminare tutte le chat.' };
+    const { data, error } = await supabase.rpc('admin_clear_all_chats');
+    if (error) return { ok: false, error: errorMessage(error) };
+    const result = (data ?? {}) as Record<string, unknown>;
+    await refreshAll();
+    return {
+      ok: true,
+      message: `${Number(result.deleted_messages ?? 0)} messaggi e ${Number(result.deleted_notifications ?? 0)} notifiche chat eliminati.`,
+    };
   }, [currentUser.role, refreshAll]);
 
   const markNotificationRead = useCallback(async (notificationId: string) => {
@@ -966,6 +996,7 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
     sendChatMessage,
     deleteChatMessage,
     clearChatConversation,
+    clearAllChats,
     markNotificationRead,
     markAllNotificationsRead,
     createGlobalNotification,
@@ -1012,6 +1043,7 @@ export function AppStoreProvider({ children }: React.PropsWithChildren) {
     sendChatMessage,
     deleteChatMessage,
     clearChatConversation,
+    clearAllChats,
     markNotificationRead,
     markAllNotificationsRead,
     createGlobalNotification,

@@ -168,7 +168,7 @@ function AppHeader({ onOpenChat, onOpenNotifications }: { onOpenChat: () => void
           <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
         </View>
         <Text style={styles.headerSubtitle} numberOfLines={1}>
-          {roleLabels[activeRole]} · {firstName} · v1.6.9
+          {roleLabels[activeRole]} · {firstName} · v1.8.1
         </Text>
       </View>
       <View style={styles.headerActions}>
@@ -290,7 +290,7 @@ function DesktopSidebar({
           <Ionicons name="log-out-outline" size={20} color="#FFD8D8" />
           <Text style={styles.desktopLogoutText}>Logout</Text>
         </Pressable>
-        <Text style={styles.desktopVersion}>Marilab Mover Enterprise · v1.6.9</Text>
+        <Text style={styles.desktopVersion}>Marilab Mover Enterprise · v1.8.1</Text>
       </View>
       </ScrollView>
     </LinearGradient>
@@ -785,7 +785,7 @@ function AdminHome({ onOpenRequests }: { onOpenRequests: () => void }) {
           <Text style={styles.dashboardSectionEyebrow}>TEMPO REALE</Text>
           <Text style={styles.dashboardSectionTitle}>Stato operativo</Text>
         </View>
-        <View style={styles.versionChip}><Text style={styles.versionChipText}>v1.6.9</Text></View>
+        <View style={styles.versionChip}><Text style={styles.versionChipText}>v1.8.1</Text></View>
       </View>
       <View style={[styles.adminMetrics, isDesktopWeb && styles.adminMetricsDesktop]}>
         <AdminMetric desktop={isDesktopWeb} icon="calendar-clear-outline" value={todayRequests.length} label="Consegne oggi" tone="brand" />
@@ -944,7 +944,7 @@ function RequestCard({ request, compact = false }: { request: DeliveryRequest; c
   const moverNames = request.assignedMoverIds.map((id) => users.find((entry) => entry.id === id)?.fullName).filter(Boolean).join(' e ');
   const requester = users.find((entry) => entry.id === request.requesterId);
   const late = isRequestLate(request);
-  const canDelete = currentUser.role === 'admin' && ['completed', 'cancelled'].includes(request.status);
+  const canDelete = currentUser.role === 'admin';
 
   const removeClosedRequest = async () => {
     const result = await deleteRequest(request.id);
@@ -956,14 +956,14 @@ function RequestCard({ request, compact = false }: { request: DeliveryRequest; c
   };
 
   const confirmDelete = () => {
-    const detail = `${request.code} verrà rimosso con storico stati, assegnazioni, notifiche e chat collegate.`;
+    const detail = `${request.code} (${statusLabels[request.status]}) verrà rimossa definitivamente con storico stati, assegnazioni, notifiche e chat collegate.`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (!window.confirm(`Eliminare il viaggio chiuso?\n\n${detail}`)) return;
+      if (!window.confirm(`Eliminare richiesta o consegna?\n\n${detail}`)) return;
       if (window.confirm('Conferma definitiva\n\nQuesta operazione non può essere annullata.')) void removeClosedRequest();
       return;
     }
 
-    Alert.alert('Eliminare il viaggio chiuso?', detail, [
+    Alert.alert('Eliminare richiesta o consegna?', detail, [
       { text: 'Annulla', style: 'cancel' },
       {
         text: 'Continua',
@@ -1008,7 +1008,7 @@ function RequestCard({ request, compact = false }: { request: DeliveryRequest; c
       {!compact && canDelete ? (
         <Pressable onPress={confirmDelete} style={styles.deleteClosedButton}>
           <Ionicons name="trash-outline" size={17} color={palette.danger} />
-          <Text style={styles.deleteClosedText}>Elimina viaggio chiuso o di test</Text>
+          <Text style={styles.deleteClosedText}>Elimina richiesta o consegna</Text>
         </Pressable>
       ) : null}
     </Card>
@@ -1136,7 +1136,7 @@ function ProfileScreen({ onRoleChanged: _onRoleChanged }: { onRoleChanged: () =>
         <Card style={styles.aboutCard}>
           <View style={styles.managementIcon}><Ionicons name="information-circle-outline" size={22} color={palette.brand} /></View>
           <View style={styles.managementText}>
-            <Text style={styles.managementTitle}>Marilab Mover 1.6.9 · HD Web + Push Browser</Text>
+            <Text style={styles.managementTitle}>Marilab Mover 1.8.1 · HD Web + Push Browser</Text>
             <Text style={styles.managementSubtitle}>Autore: Fabio Carratù · Progetto Supabase indipendente da FMED</Text>
           </View>
         </Card>
@@ -1837,6 +1837,7 @@ function ChatModal({ visible, onClose }: { visible: boolean; onClose: () => void
     sendChatMessage,
     deleteChatMessage,
     clearChatConversation,
+    clearAllChats,
   } = useAppStore();
   const [text, setText] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState<string>();
@@ -1894,15 +1895,46 @@ function ChatModal({ visible, onClose }: { visible: boolean; onClose: () => void
     ]);
   };
 
+  const showActionMessage = (title: string, message?: string) => {
+    if (!message) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(`${title}\n\n${message}`);
+    else Alert.alert(title, message);
+  };
+
   const confirmClear = () => askConfirmation(
     'Svuotare la conversazione?',
-    'I messaggi verranno marcati come eliminati.',
+    'Tutti i messaggi della conversazione selezionata verranno eliminati definitivamente.',
     'Svuota chat',
     async () => {
       const result = await clearChatConversation(selectedRequestId, selectedUserId);
-      if (!result.ok) Alert.alert('Operazione non riuscita', result.error);
+      if (!result.ok) showActionMessage('Operazione non riuscita', result.error);
     },
   );
+
+  const confirmClearAll = () => {
+    const run = async () => {
+      const result = await clearAllChats();
+      showActionMessage(result.ok ? 'Chat eliminate' : 'Operazione non riuscita', result.ok ? result.message : result.error);
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (!window.confirm('Eliminare TUTTE le chat?\n\nSaranno cancellate chat generale, private e chat delle consegne.')) return;
+      if (window.confirm('Conferma definitiva\n\nL’operazione non può essere annullata.')) void run();
+      return;
+    }
+
+    Alert.alert('Eliminare TUTTE le chat?', 'Saranno cancellate chat generale, private e chat delle consegne.', [
+      { text: 'Annulla', style: 'cancel' },
+      {
+        text: 'Continua',
+        style: 'destructive',
+        onPress: () => Alert.alert('Conferma definitiva', 'L’operazione non può essere annullata.', [
+          { text: 'No', style: 'cancel' },
+          { text: 'Elimina tutte', style: 'destructive', onPress: () => void run() },
+        ]),
+      },
+    ]);
+  };
 
   const confirmDeleteMessage = (messageId: string) => askConfirmation(
     'Eliminare il messaggio?',
@@ -1910,7 +1942,7 @@ function ChatModal({ visible, onClose }: { visible: boolean; onClose: () => void
     'Elimina',
     async () => {
       const result = await deleteChatMessage(messageId);
-      if (!result.ok) Alert.alert('Operazione non riuscita', result.error);
+      if (!result.ok) showActionMessage('Operazione non riuscita', result.error);
     },
   );
 
@@ -1936,6 +1968,12 @@ function ChatModal({ visible, onClose }: { visible: boolean; onClose: () => void
             <Text style={styles.chatContextText}>Cambia conversazione</Text>
             <Ionicons name="chevron-down" size={18} color={palette.textMuted} />
           </Pressable>
+          {currentUser.role === 'admin' ? (
+            <Pressable accessibilityLabel="Elimina tutte le chat" onPress={confirmClearAll} style={({ pressed }) => [styles.clearAllChatsButton, pressed && styles.pressed]}>
+              <Ionicons name="trash-bin-outline" size={17} color={palette.danger} />
+              <Text style={styles.clearAllChatsText}>Elimina tutte le chat</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <KeyboardAvoidingView style={styles.chatBody} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={10}>
@@ -1943,7 +1981,7 @@ function ChatModal({ visible, onClose }: { visible: boolean; onClose: () => void
             {visibleMessages.length ? visibleMessages.map((message) => {
               const mine = message.senderId === currentUser.id;
               const sender = users.find((item) => item.id === message.senderId);
-              const canDelete = !message.deletedAt && (mine || currentUser.role === 'admin');
+              const canDelete = !message.deletedAt && currentUser.role === 'admin';
               return (
                 <View key={message.id} style={[styles.messageRow, mine && styles.messageRowMine]}>
                   <View style={[styles.messageBubble, mine ? styles.messageBubbleMine : styles.messageBubbleOther, message.deletedAt && styles.messageBubbleDeleted]}>
@@ -2348,6 +2386,8 @@ const styles = StyleSheet.create({
   chatContextWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: palette.background },
   chatContext: { minHeight: 46, borderRadius: radius.pill, paddingHorizontal: spacing.lg, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, alignSelf: 'center' },
   chatContextText: { color: palette.text, fontSize: 13, fontWeight: '800', fontFamily: typography.body },
+  clearAllChatsButton: { minHeight: 40, marginTop: spacing.sm, borderRadius: radius.pill, paddingHorizontal: spacing.lg, backgroundColor: palette.dangerSoft, borderWidth: 1, borderColor: '#F0C2C7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, alignSelf: 'center' },
+  clearAllChatsText: { color: palette.danger, fontSize: 12, fontWeight: '900', fontFamily: typography.body },
   chatList: { flexGrow: 1, padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.sm, maxWidth: Platform.OS === 'web' ? 1400 : 760, width: '100%', alignSelf: 'center' },
   messageRow: { flexDirection: 'row', justifyContent: 'flex-start' },
   messageRowMine: { justifyContent: 'flex-end' },

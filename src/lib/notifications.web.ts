@@ -229,24 +229,45 @@ export async function showDemoNotification(title: string, body: string) {
   if (!registration) return;
   await registration.showNotification(title, {
     body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icons/icon-192-v182.png',
+    badge: '/notification-badge.png',
     tag: 'marilab-mover-demo',
   });
 }
 
 export async function syncAppBadgeCount(count: number) {
   if (typeof navigator === 'undefined') return false;
+  const normalized = Math.max(0, Math.min(999, Math.trunc(count)));
   const badgeNavigator = navigator as Navigator & {
     setAppBadge?: (value?: number) => Promise<void>;
     clearAppBadge?: () => Promise<void>;
   };
+
+  let supported = false;
   try {
-    if (count > 0 && badgeNavigator.setAppBadge) await badgeNavigator.setAppBadge(count);
-    else if (badgeNavigator.clearAppBadge) await badgeNavigator.clearAppBadge();
-    else return false;
-    return true;
+    if (normalized > 0 && badgeNavigator.setAppBadge) {
+      await badgeNavigator.setAppBadge(normalized);
+      supported = true;
+    } else if (normalized === 0 && badgeNavigator.clearAppBadge) {
+      await badgeNavigator.clearAppBadge();
+      supported = true;
+    } else if (normalized === 0 && badgeNavigator.setAppBadge) {
+      await badgeNavigator.setAppBadge(0);
+      supported = true;
+    }
   } catch {
-    return false;
+    // Il Service Worker prova comunque a sincronizzare il conteggio persistente.
   }
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      const worker = navigator.serviceWorker.controller ?? registration?.active ?? registration?.waiting;
+      worker?.postMessage({ type: 'MARILAB_BADGE_SYNC', count: normalized });
+    }
+  } catch {
+    // Nessun blocco dell’app se il Service Worker non è ancora pronto.
+  }
+
+  return supported;
 }

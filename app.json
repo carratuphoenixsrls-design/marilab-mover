@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marilab Mover",
     "slug": "marilab-mover",
-    "version": "1.6.9",
+    "version": "1.8.2",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "marilabmover",
@@ -24,7 +24,7 @@
       "permissions": [
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 17,
+      "versionCode": 19,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -54,7 +54,7 @@
       "typedRoutes": true,
       "reactCompiler": false
     },
-    "description": "Marilab Mover 1.6.9: affidabilità Push multi-dispositivo Web/PWA, Android e iOS con registrazione server, coda per singolo dispositivo, retry controllati e ricevute Expo. Autore: Fabio Carratù.",
+    "description": "Marilab Mover 1.8.2: controllo Admin completo, chat private corrette, icona PWA installabile e badge numerico notifiche su iPhone/iPad e dispositivi compatibili. Autore: Fabio Carratù.",
     "extra": {
       "author": "Fabio Carratù",
       "privacy": "Nessun dato sanitario o allegato. Solo dati operativi e account aziendali autorizzati.",
