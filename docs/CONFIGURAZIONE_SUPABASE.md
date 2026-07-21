@@ -8,13 +8,14 @@ Applicare una sola volta:
 
 ```text
 supabase/MIGRAZIONE_E1_6_9_PUSH_RELIABILITY.sql
+supabase/MIGRAZIONE_E1_8_1_ADMIN_CONTROL_CHAT_FIX.sql
 ```
 
 Non rieseguire `schema.sql` sul progetto operativo.
 
 ## Nuova installazione
 
-Eseguire `supabase/schema.sql` e tutte le migrazioni nell’ordine numerico, terminando con `MIGRAZIONE_E1_6_9_PUSH_RELIABILITY.sql`. Lo schema base da solo non rappresenta tutte le evoluzioni successive.
+Eseguire `supabase/schema.sql` e tutte le migrazioni nell’ordine numerico, terminando con `MIGRAZIONE_E1_8_1_ADMIN_CONTROL_CHAT_FIX.sql`. Lo schema base da solo non rappresenta tutte le evoluzioni successive.
 
 ## Edge Functions da pubblicare
 
